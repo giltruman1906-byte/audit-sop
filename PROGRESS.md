@@ -160,7 +160,38 @@ The full client journey now works:
 
 ---
 
-### What's next — M6 (Provisioning + Vault Handoff)
+### What we built — M6 (Provisioning Checklist) COMPLETE
+
+- `lib/provisioning-parser.ts`: Claude tool-use extracts service/env_var_name/vault_location from brief
+- finalize route: saves items to `provisioning_items` after generation (fire-and-forget)
+- `/api/interview/[id]/provision`: PATCH toggles item status pending/done
+- `/dashboard/interview/[id]`: interview detail page — meta, lead, checklist, brief text
+- `ProvisioningChecklist.tsx`: interactive checkboxes, optimistic toggle
+- Dashboard rows link to detail page
+
+### What we built — M7 (BYO Key + Rate-Card Config UI) COMPLETE
+
+- `lib/crypto.ts`: AES-256-GCM encrypt/decrypt; ENCRYPTION_KEY from env (throws if missing)
+- `lib/claude.ts`: `getAgencyApiKey()` — decrypts stored key, falls back gracefully
+- Brief + summary generators: accept optional `apiKey` prop
+- Message + finalize routes: fetch BYO key per agency before Claude calls
+- `/api/agency/key`: GET (configured?), POST (encrypt+store), DELETE — key never returned to client
+- `/api/agency/rate-card`: PUT to update a pricing tier (scoped to agency)
+- `/dashboard/settings`: ApiKeyPanel + RateCardEditor — full config UI
+
+---
+
+### M0–M7 complete. All core features built.
+
+**What remains before Vercel deploy:**
+- M8 — Voice input (optional, skip for now)
+- M9 — Polish + acceptance tests (§11)
+- Vercel deploy + env var setup
+- Generate ENCRYPTION_KEY and SESSION_SECRET in `.env.local`
+
+### What's next — M6 (Provisioning + Vault Handoff) [DONE — see above]
+
+### What was next — M6 (Provisioning + Vault Handoff)
 
 Build order:
 1. After finalize, parse the provisioning checklist from the agency brief and save rows to `provisioning_items`
