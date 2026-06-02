@@ -115,19 +115,61 @@
 
 ---
 
-### What's next — M4 (Finalize → Dual Output)
+### What we built — M4 (Finalize → Dual Output) COMPLETE
+
+**New files**
+- `lib/brief-generator.ts` — generates full technical agency brief (§7a); system prompt enforces: no secret values, only env var names + vault locations; budget labeled indicative
+- `lib/summary-generator.ts` — generates plain-language client summary (§7b); must label timeframe + budget as "indicative estimate — not a binding quote"
+- `app/api/interview/[id]/finalize/route.ts` — POST; verifies status='complete'; returns cached brief if already generated (idempotent); gathers interview + transcript + lead + agency + tier; generates both outputs in parallel (Promise.all); upserts to `briefs` table
+- `app/interview/[id]/SummaryView.tsx` — client component; triggers finalize on mount if no cached brief; shows loading dots; renders summary as styled sections; caches and skips on refresh
+
+**Modified files**
+- `app/interview/[id]/page.tsx` — 'complete' status now fetches cached brief and renders SummaryView (or triggers generation if none)
+
+**Tested manually** — finalize called against real interview data:
+- Client summary: plain language, correct structure, indicative disclaimer present ✓
+- Agency brief: technical, structured, includes requirements/stack/architecture/build plan ✓
+- Both generated in parallel, stored in `briefs` table, cached on second call ✓
+
+---
+
+### What we built — M5 (Email Delivery) COMPLETE
+
+**New files**
+- `lib/email.ts` — Resend wrapper; `sendBriefEmail()` sends agency brief to `BRIEF_DELIVERY_EMAIL`; `sendSummaryEmail()` sends client summary to lead email; `extractProjectName()` pulls the # heading from the brief for the subject line; both convert Markdown to a styled HTML email
+
+**Modified files**
+- `app/api/interview/[id]/finalize/route.ts` — after storing the brief, fires both emails as fire-and-forget (`.catch` logged, never blocks); email failures don't prevent the summary from displaying to the client
+
+**Guardrails verified**
+- Brief email: contains Markdown doc content only — no API keys, no secrets, no session tokens
+- Neither email is sent from the block that generates content — they're dispatched after saving to DB
+- `BRIEF_DELIVERY_EMAIL` is read server-side only from env, never exposed to client
+
+---
+
+### Milestones M0–M5 complete. Core beta flow is functional end-to-end.
+
+The full client journey now works:
+1. Agency starts interview → shares link
+2. Client answers questions (M1)
+3. Budget range shown, client signs off (M2)
+4. Contact details captured (M3)
+5. Brief + summary generated (M4)
+6. Brief emailed to agency, summary emailed to client (M5)
+
+---
+
+### What's next — M6 (Provisioning + Vault Handoff)
 
 Build order:
-1. `lib/brief-generator.ts` — transcript + leads → Claude-Code-ready agency brief (Markdown, §7a structure)
-2. `lib/summary-generator.ts` — transcript + budget → plain-language client summary (§7b structure)
-3. `app/api/interview/[id]/finalize/route.ts` — POST: generates both outputs, stores in `briefs` table
-4. `app/interview/[id]/SummaryView.tsx` — shows client summary on screen after submit
+1. After finalize, parse the provisioning checklist from the agency brief and save rows to `provisioning_items`
+2. Show the checklist on the dashboard (for the agency to track which accounts the client has created)
 
-Done-criteria for M4:
-- Both outputs match §7a/§7b structure exactly
-- Neither contains any secret value (guardrail #1)
-- Summary labels timeframe + budget as INDICATIVE
-- Both stored in `briefs` table before being displayed/sent
+Done-criteria for M6:
+- Each provisioning item has: service, env_var_name, vault_location, status=pending
+- No actual secret values in provisioning_items
+- Dashboard shows checklist; agency can mark items done
 
 ---
 
