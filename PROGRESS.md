@@ -46,7 +46,54 @@
 
 ---
 
-### What's next — M1 (Interview Loop)
+---
+
+## Session 2 — 2 June 2026
+
+### What we built — M1 (Interview Loop) COMPLETE
+
+**New files**
+- `lib/interview-spec.ts` — system prompt + 15-field schema + `isInterviewComplete()` (core IP)
+- `lib/claude.ts` — provider-abstracted Anthropic client; swap API key here for BYO key (M7)
+- `app/api/interview/start/route.ts` — GET → creates interview row → redirects to `/interview/{id}`
+- `app/api/interview/[id]/message/route.ts` — POST → streams Claude response as SSE; persists transcript; detects completion via `save_fields` tool call; advances status to `budget` when done
+- `app/interview/[id]/page.tsx` — server component; loads interview + messages; renders ChatClient
+- `app/interview/[id]/ChatClient.tsx` — client component; handles SSE streaming, typing indicator, auto-triggers opening message on first load, shows completion banner
+
+**Refactor**
+- Split `lib/supabase.ts` (browser-only) from `lib/supabase-server.ts` (server + admin) — was causing a build error because `next/headers` was being pulled into the client bundle via the login page
+
+**How completion detection works**
+- System prompt instructs Claude to call `save_fields` tool after every response, with all 15 fields (null if not yet captured)
+- Message route accumulates `input_json_delta` events from the stream
+- After stream ends, parses tool JSON → `isInterviewComplete()` → if all 15 filled, sets `status = 'budget'`
+- Client receives `{t:"done", complete:true/false}` as final SSE event
+
+**Tested manually**
+- `/api/interview/start` → creates row in Supabase, redirects to chat page ✓
+- Opening message streams correctly ✓
+- Follow-up user message → Claude asks ONE next question ✓
+- `{t:"done", complete:false}` received correctly ✓
+
+---
+
+### What's next — M2 (Budget Step)
+
+Build order:
+1. `lib/pricing.ts` — maps `complexity_signals` from the completed interview → a tier (small / medium / large) deterministically; falls back to model classification for ambiguous cases
+2. `app/interview/[id]/BudgetStep.tsx` — shows matched tier range from rate card; client can adjust to adjacent tier; signs off
+3. `app/api/interview/[id]/budget/route.ts` — saves `tier`, `budget_min`, `budget_max`, `estimated_timeframe`; advances status to `contact`
+
+Done-criteria for M2:
+- Budget shown is ALWAYS from the agency's rate card, never invented
+- Scope→tier mapping is consistent on re-run
+- Sign-off saves tier + range + timeframe to `interviews`
+
+---
+
+### What was next before (M1 plan, now done) — kept for reference
+
+### What's next — M1 (Interview Loop) [DONE]
 
 The heart of the product. Build order:
 
