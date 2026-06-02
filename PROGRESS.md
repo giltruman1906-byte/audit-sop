@@ -98,17 +98,36 @@
 
 ---
 
-### What's next — M3 (Contact Capture)
+### What we built — M3 (Contact Capture) COMPLETE
+
+**New files**
+- `app/interview/[id]/ContactPopup.tsx` — full-page contact form; purpose statement shown above the fields ("Suki Systems will use these details to follow up…"); company name, contact name, email (required), phone (optional); validates email format client- and server-side; `consent_ts` set server-side on submit
+- `app/api/interview/[id]/lead/route.ts` — validates status='contact'; saves to `leads` with `consent_ts = now()`; sets interview status='complete' and `completed_at`
+
+**Modified files**
+- `app/interview/[id]/page.tsx` — contact placeholder replaced with `<ContactPopup />`
+
+**Guardrails verified**
+- Collects exactly: company_name, contact_name, email, phone — nothing more
+- Purpose statement visible before any data entry
+- consent_ts set server-side (not client-supplied)
+- Phone is optional; all other fields required
+
+---
+
+### What's next — M4 (Finalize → Dual Output)
 
 Build order:
-1. `app/interview/[id]/ContactPopup.tsx` — modal overlay: company name, contact name, email, phone; one-line purpose statement shown to client; consent timestamp captured
-2. `app/api/interview/[id]/lead/route.ts` — saves to `leads` table; advances status to `complete`
+1. `lib/brief-generator.ts` — transcript + leads → Claude-Code-ready agency brief (Markdown, §7a structure)
+2. `lib/summary-generator.ts` — transcript + budget → plain-language client summary (§7b structure)
+3. `app/api/interview/[id]/finalize/route.ts` — POST: generates both outputs, stores in `briefs` table
+4. `app/interview/[id]/SummaryView.tsx` — shows client summary on screen after submit
 
-Done-criteria for M3:
-- All four fields required: company_name, contact_name, email, phone
-- Purpose statement shown before submit
-- `consent_ts` saved automatically on submit
-- No extra data collected beyond spec
+Done-criteria for M4:
+- Both outputs match §7a/§7b structure exactly
+- Neither contains any secret value (guardrail #1)
+- Summary labels timeframe + budget as INDICATIVE
+- Both stored in `briefs` table before being displayed/sent
 
 ---
 
