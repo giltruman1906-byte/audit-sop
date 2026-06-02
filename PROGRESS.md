@@ -77,17 +77,38 @@
 
 ---
 
-### What's next — M2 (Budget Step)
+### What we built — M2 (Budget Step) COMPLETE
+
+**New files**
+- `lib/pricing.ts` — `getMatchedTier(complexitySignals, tiers)`: runs deterministic keyword rules first (enterprise/multi-tenant → large; single workflow → small); falls back to Claude `classify_tier` tool for ambiguous cases. Never invents prices — always maps to agency rate card.
+- `app/api/interview/[id]/budget/route.ts` — POST `{tier}`: verifies tier exists on the agency's rate card; saves `tier`, `budget_min`, `budget_max`, `estimated_timeframe` to `interviews`; advances status to `contact`
+- `app/interview/[id]/BudgetStep.tsx` — client component; shows all three tier cards with suggested tier pre-selected; disclaimer "indicative estimate, not a binding quote"; sign-off button posts to budget route; on success calls `router.refresh()` to advance
+
+**Modified files**
+- `app/api/interview/[id]/message/route.ts` — on completion: fetches agency's tiers, runs `getMatchedTier`, saves suggested tier to interview; pricing failure is non-fatal (still advances to budget)
+- `app/interview/[id]/page.tsx` — now routes by status: `active` → ChatClient, `budget` → BudgetStep, `contact` → placeholder (M3), `complete` → done screen
+- `app/interview/[id]/ChatClient.tsx` — completion banner now has "See budget range →" button that calls `router.refresh()` to re-render server component
+
+**How it all fits**
+1. Interview completes → message route runs pricing → saves suggested tier → sets status='budget'
+2. ChatClient shows completion banner with button
+3. User clicks → router.refresh() → page.tsx re-fetches → renders BudgetStep with pre-selected tier
+4. User adjusts if needed → clicks sign-off → budget route validates against rate card → saves → status='contact'
+5. router.refresh() → page.tsx shows contact placeholder (M3 next)
+
+---
+
+### What's next — M3 (Contact Capture)
 
 Build order:
-1. `lib/pricing.ts` — maps `complexity_signals` from the completed interview → a tier (small / medium / large) deterministically; falls back to model classification for ambiguous cases
-2. `app/interview/[id]/BudgetStep.tsx` — shows matched tier range from rate card; client can adjust to adjacent tier; signs off
-3. `app/api/interview/[id]/budget/route.ts` — saves `tier`, `budget_min`, `budget_max`, `estimated_timeframe`; advances status to `contact`
+1. `app/interview/[id]/ContactPopup.tsx` — modal overlay: company name, contact name, email, phone; one-line purpose statement shown to client; consent timestamp captured
+2. `app/api/interview/[id]/lead/route.ts` — saves to `leads` table; advances status to `complete`
 
-Done-criteria for M2:
-- Budget shown is ALWAYS from the agency's rate card, never invented
-- Scope→tier mapping is consistent on re-run
-- Sign-off saves tier + range + timeframe to `interviews`
+Done-criteria for M3:
+- All four fields required: company_name, contact_name, email, phone
+- Purpose statement shown before submit
+- `consent_ts` saved automatically on submit
+- No extra data collected beyond spec
 
 ---
 
