@@ -1,84 +1,95 @@
-# Deployment Status — Live Debugging Session
-_Last updated: 2 June 2026_
+# Deployment Status
+_Last updated: 2 June 2026 — end of Session 2_
 
-## Vercel Deployment
+---
+
+## Vercel
 - **URL:** `intake-engine-881jqdx0l-suki-systems.vercel.app`
-- **Status:** Live and deployed ✅
-- **Repo:** `giltruman1906-byte/intake-engine` (private) → main branch
-- **Latest commit:** `d4adf1a` — fixed admin Supabase client (was causing 404 for clients)
+- **Status:** Live ✅
+- **Latest commit:** `3555ef5` — session management + upsell + post-submit UX
+- **Auto-deploys** on every push to `main`
 
-## Agency Login (Dashboard)
+## Agency Login
 - **URL:** `intake-engine-881jqdx0l-suki-systems.vercel.app/login`
 - **Email:** `giltruman1906@gmail.com`
-- **Password:** stored in your head — created via Supabase Admin API ✅
+- **Password:** yours
+
+---
 
 ## What is Working ✅
-- Agency can log in to dashboard
-- "New Interview →" button creates a fresh interview and shows a shareable link (Copy button)
-- Client opens link → hits sign-up page at `/interview/{id}/auth`
-- Client signs up with email + password
-- Full interview flow: chat → budget → contact form → summary screen
-- Admin Supabase client fixed (was causing 404 — now uses raw supabase-js)
+- Agency login → dashboard → "New Interview →" → copy shareable link
+- Client opens link → signs up (email + password) → full interview chat
+- Budget step → contact form → summary screen
+- Dashboard shows all interviews with detail view
+- Provisioning checklist parsed from brief and saved to DB
+- Rate card editor + BYO Claude key UI in Settings
+- Interview completion properly advances to budget (fixed timing bug)
+- Session lock — input disabled after complete or terminated
+- Termination overlay popup after 5 irrelevant flags
+- Upsell persona active in interview prompt
+- Post-submit confirmation message updated
 
-## What is Broken / In Progress ❌
+## What is Pending ⏳
 
-### 1. Email delivery — NOT working yet
-**Root cause:** `suki-systems.com` domain not verified in Resend.
-Emails are sent `from: intake@suki-systems.com` — Resend silently drops them without domain verification.
+### 1. Resend DNS — still propagating
+All 3 DNS records added to Squarespace Custom Records. Resend shows "Pending".
+NS1 (Squarespace's provider) can take up to 24 hours.
 
-**DNS records needed in Squarespace (Custom Records section):**
-
+**DNS records already added (do not re-add):**
 | Type | Host | Data | Priority |
 |------|------|------|----------|
 | TXT | `resend._domainkey` | `p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC/7Z/bgx2KRThyAiSOHqQoItwoJhT9kpGVVb4O5kUso/aOGG3B4jXBbllSuQdjPMXBRhMbxqUry7gar3nmpb1fCLBAZq+dfullMZQPEkXwwXDXHCG+MoJt3i1ALmI2tWvPcIkxMotcRtp9pnps+ib9+o/FBP9ckBrlIjSIjlLEwQIDAQAB` | — |
 | MX | `send` | `feedback-smtp.us-east-1.amazonses.com` | `10` |
 | TXT | `send` | `v=spf1 include:amazonses.com ~all` | — |
 
-**Steps remaining:**
-1. Go to squarespace.com → Domains → suki-systems.com → DNS Settings → **Custom Records**
-2. Add the 3 records above
-3. Go back to Resend → Domains → suki-systems.com → click **"Verify DNS Records"**
-4. DNS propagation: 5–30 minutes, may take up to 24h
+**When Resend shows "Verified":** run a full end-to-end test and confirm:
+- Client receives summary email
+- `yali@suki-systems.com` receives the agency brief
 
-**Note:** DKIM and SPF rows in Resend already show green checkmarks — may already be partially verified. Try Verify first before adding records.
+### 2. Full end-to-end test still needed
+DNS must be verified first. Then:
+1. Create fresh interview from dashboard
+2. Go through full flow as test client (real email)
+3. Confirm both emails arrive
+4. Confirm dashboard detail shows provisioning checklist + brief
 
-### 2. Dashboard showing empty interviews
-**Symptom:** Dashboard interview list shows no rows even after client completed the flow.
-**Likely cause:** The interview that was tested was created before the admin client fix — it may have a corrupted state. OR the RLS policy on the `interviews` table is blocking the dashboard query (dashboard uses `createServerSupabaseClient` with anon key + user session, which is subject to RLS).
-**Next step:** After emails are working, create a fresh interview end-to-end and check if it appears in the dashboard.
-
-### 3. Brief not received at yali@suki-systems.com
-**Cause:** Same as email issue — Resend domain not verified.
-**Also check:** The `finalize` route is called by `SummaryView` on mount. Confirm the client actually saw the summary screen (not just the contact form). If they did, finalize ran and the brief is in the `briefs` table — it just wasn't emailed.
-
-## Testing Order (once DNS is done)
-1. ✅ Verify DNS in Squarespace
-2. ✅ Click "Verify DNS Records" in Resend
-3. Create a brand new interview from dashboard
-4. Go through the full flow as a test client (use a real email to confirm receipt)
-5. Check dashboard → interview detail for provisioning checklist
-6. Confirm brief arrives at yali@suki-systems.com
-7. Confirm client summary arrives at client email
-
-## Environment Variables (Vercel — all set ✅)
-| Variable | Status |
-|---|---|
-| ANTHROPIC_API_KEY | ✅ |
-| ANTHROPIC_MODEL | ✅ |
-| NEXT_PUBLIC_SUPABASE_URL | ✅ |
-| NEXT_PUBLIC_SUPABASE_ANON_KEY | ✅ |
-| SUPABASE_SERVICE_ROLE_KEY | ✅ |
-| RESEND_API_KEY | ✅ |
-| BRIEF_DELIVERY_EMAIL | ✅ `yali@suki-systems.com` |
-| ENCRYPTION_KEY | ✅ |
-| SESSION_SECRET | ✅ |
+---
 
 ## Supabase
-- **Project URL:** `https://wifvirdxegyyflcrzlsf.supabase.co`
-- **Email confirmation:** OFF ✅ (clients don't need to verify email before signing in)
-- **Agency #1:** Suki Systems — UUID `00000000-0000-0000-0000-000000000001`
+- **Project:** `https://wifvirdxegyyflcrzlsf.supabase.co`
+- **Email confirmation:** OFF ✅
+- **Agency #1 UUID:** `00000000-0000-0000-0000-000000000001`
+- **DB change applied:** `irrelevant_count integer NOT NULL DEFAULT 0` added to `interviews` ✅
 
 ## Resend
-- **Account:** giltruman1906@gmail.com
-- **Domain:** suki-systems.com — NOT yet verified ❌
-- **API key:** set in Vercel env vars ✅
+- **Account:** `giltruman1906@gmail.com`
+- **Domain:** `suki-systems.com` — records added, propagation in progress ⏳
+- **Brief delivery:** `yali@suki-systems.com`
+
+---
+
+## All Milestones
+| M | What | Status |
+|---|---|---|
+| M0 | Scaffold, DB, auth, Suki seed | ✅ |
+| M1 | Streaming interview chat + transcript | ✅ |
+| M2 | Budget step + tier matching | ✅ |
+| M3 | Contact capture + consent | ✅ |
+| M4 | Agency brief + client summary generation | ✅ |
+| M5 | Email delivery via Resend | ✅ (pending DNS) |
+| M6 | Provisioning checklist + dashboard detail | ✅ |
+| M7 | BYO key encryption + rate-card editor | ✅ |
+| M8 | Voice input | ⏭ skipped |
+| M9 | Polish + acceptance tests | 🔲 next session |
+| — | Vercel deploy | ✅ |
+| — | Client auth (sign-up flow) | ✅ |
+| — | Session management (lock + terminate) | ✅ |
+| — | Upsell persona | ✅ |
+| — | Post-submit confirmation UX | ✅ |
+
+## Next Session Priorities
+1. Confirm DNS verified + emails delivering
+2. Full end-to-end test with real emails
+3. M9 — acceptance tests from §11 of BUILD_BRIEF_Final.md
+4. Fix any issues found in testing
+5. Custom domain on Vercel (optional)
