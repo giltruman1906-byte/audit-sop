@@ -131,10 +131,52 @@
 
 ---
 
+---
+
+## Session 3 — 3 June 2026
+
+### DNS Investigation + Resolution (in progress)
+
+**Root cause found:**
+- Resend domain `suki-systems.com` showing "Failed" — all 3 DNS records missing from live DNS
+- Records were added to Squarespace Custom DNS but Squarespace is NOT authoritative
+- Squarespace nameservers are set to Netlify DNS (`dns1-4.p03.nsone.net`) — DNS is controlled by Netlify
+- `suki-systems.com` website is live on Netlify (confirmed via `curl` — `server: Netlify`)
+- Netlify DNS zone for `suki-systems.com` is orphaned — exists in Netlify infrastructure but not linked to any active team
+- Error when adding domain in Netlify: "managed by Netlify DNS on another team"
+- Only one Netlify account exists (`yali@suki-systems.com`, team `yali-xizt504`)
+
+**Actions taken:**
+- Added TXT record `verified-for-netlify` → `1046177` to Squarespace (for ownership proof)
+- Submitted Netlify support ticket **#1046177** requesting DNS zone release to team `yali-xizt504`
+- Waiting for Netlify support to release the orphaned zone
+
+**Once Netlify releases the zone:**
+1. Add `suki-systems.com` to Netlify team `yali-xizt504`
+2. Add the 3 Resend DNS records in Netlify DNS:
+   - TXT `resend._domainkey` → `p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC/7Z/bgx2KRThyAiSOHqQoItwoJhT9kpGVVb4O5kUso/aOGG3B4jXBbllSuQdjPMXBRhMbxqUry7gar3nmpb1fCLBAZq+dfullMZQPEkXwwXDXHCG+MoJt3i1ALmI2tWvPcIkxMotcRtp9pnps+ib9+o/FBP9ckBrlIjSIjlLEwQIDAQAB`
+   - MX `send` → `feedback-smtp.us-east-1.amazonses.com` (priority 10)
+   - TXT `send` → `v=spf1 include:amazonses.com ~all`
+3. Hit Restart in Resend → should verify within minutes
+4. Run full end-to-end email test
+
+### UI — Suki Brand Fonts Fixed
+
+**Problem:** Archivo font was referenced in all components but never loaded. All text was falling back to system sans-serif.
+
+**Fix (commit `43deed5`):**
+- `layout.tsx` — replaced Geist with Archivo + Archivo Black (loaded via `next/font/google`)
+- `globals.css` — Suki brand colors as CSS variables (`#EBE7DD` bg, `#1A2332` dark, `#E85A2C` orange, `#F5F2EC` card), removed dark mode override, removed white background
+- All 17 component files — replaced hardcoded `'Archivo, sans-serif'` / `'Archivo Black, sans-serif'` strings with `var(--font-archivo)` / `var(--font-archivo-black)` CSS variables
+- Page title updated to "Suki Systems — Project Intake"
+- Deployed to Vercel on push to main
+
+---
+
 ## Next Session Priorities
 
-1. Confirm Resend DNS verified (check resend.com → Domains → suki-systems.com)
-2. Run full end-to-end test with real emails
+1. **DNS** — await Netlify ticket #1046177 reply → add domain to team → add 3 Resend records → verify
+2. Run full end-to-end email test (both emails must arrive correctly)
 3. M9 — acceptance tests from §11 of BUILD_BRIEF_Final.md
 4. Fix any issues found in testing
 5. Custom domain on Vercel (optional)
