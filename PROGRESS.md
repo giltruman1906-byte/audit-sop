@@ -173,13 +173,57 @@
 
 ---
 
+---
+
+## Session 4 — 9 June 2026
+
+### DNS — Fully Resolved
+- Netlify account deleted — DNS reverted to Squarespace (now authoritative)
+- DKIM record re-added to Squarespace Custom DNS (previous value had embedded spaces — fixed)
+- All 3 Resend records now **verified**: SPF MX ✅, SPF TXT ✅, DKIM ✅
+- Resend domain `suki-systems.com` status: **Verified**
+
+### Client Approval/Review Step — Built
+The flow now has a review gate before emails fire:
+
+**New status flow:** `active → budget → contact → review → complete`
+
+- `app/api/interview/[id]/lead/route.ts` — contact submit now sets status `review` (was `complete`)
+- `app/interview/[id]/ReviewStep.tsx` — new component: generates summary preview, shows "Does this look right?", Approve & Submit / Go back buttons
+- `app/api/interview/[id]/approve/route.ts` — new route: sends both emails, sets status `complete`, parses provisioning items
+- `app/api/interview/[id]/reopen/route.ts` — new route: clears brief, sets status back to `active`
+- `app/api/interview/[id]/finalize/route.ts` — now generates + stores only (no emails)
+- `app/interview/[id]/page.tsx` — routes `review` status to ReviewStep, `complete` to SummaryView
+
+### Email Bugs Fixed
+1. **Fire-and-forget broken on Vercel** — Vercel terminates the process when the response returns, killing unresolved Promises. Fixed by awaiting both emails via `Promise.allSettled` before returning.
+2. **Brief never saved** — `supabase.upsert` with `onConflict: 'interview_id'` silently failed because no UNIQUE constraint exists on that column. Fixed with explicit check-then-insert-or-update pattern.
+
+### UI Brand Update
+- All navbars flipped: dark navy background → light cream (`#EBE7DD`), matching suki-systems.com
+- Subtle dot-grid background texture added to `globals.css`
+- Applied across: Chat, Budget, Contact, Review, Summary, and terminated screens
+
+### Vercel Deployment Protection — Disabled
+Was blocking clients from reaching the app (redirected to Vercel login). Turned off in Vercel project settings.
+
+### End-to-End Test Run
+- Ran full flow as client (Moshe Moshe, `gil@suki-systems.com`)
+- Interview → Budget → Contact → Review screen → Approve → SummaryView ✅
+- Emails did NOT arrive — root cause: `RESEND_API_KEY` in Vercel is stale/wrong
+- Confirmed local key works: test email sent via curl → arrived in `giltruman1906@gmail.com` ✅
+- `gil@suki-systems.com` delivery unclear (may not be a real receiving mailbox)
+
+---
+
 ## Next Session Priorities
 
-1. **DNS** — await Netlify ticket #1046177 reply → add domain to team → add 3 Resend records → verify
-2. Run full end-to-end email test (both emails must arrive correctly)
-3. M9 — acceptance tests from §11 of BUILD_BRIEF_Final.md
-4. Fix any issues found in testing
-5. Custom domain on Vercel (optional)
+1. **Update `RESEND_API_KEY` in Vercel** — must match value in `.env.local` (Vercel → Settings → Environment Variables)
+2. Run full end-to-end test using `giltruman1906@gmail.com` as client email
+3. Verify agency brief arrives at `yali@suki-systems.com`
+4. M9 — acceptance tests from §11 of BUILD_BRIEF_Final.md
+5. Fix any issues found in testing
+6. Custom domain on Vercel (optional)
 
 ---
 
