@@ -240,11 +240,45 @@ Was blocking clients from reaching the app (redirected to Vercel login). Turned 
 
 ---
 
+## Session 6 — 9 June 2026 (continued)
+
+### M9 Acceptance Tests — Partial Pass
+
+Ran all 11 tests from §11 of BUILD_BRIEF_Final.md:
+
+| # | Test | Result |
+|---|---|---|
+| 1 | RLS: client cannot read other interviews | ⚠️ Partial — admin client used in API (by design), full RLS audit deferred |
+| 2 | Interview chat streams correctly | ✅ |
+| 3 | All 15 fields captured before completion | ✅ |
+| 4 | Budget step shows rate-card tiers | ✅ |
+| 5 | Contact form saves lead + consent_ts | ✅ |
+| 6 | Review step shown before emails fire | ✅ |
+| 7 | Agency brief email arrives at BRIEF_DELIVERY_EMAIL | ✅ |
+| 8 | Client summary email arrives at client address | ✅ |
+| 9 | Provisioning checklist populates in dashboard | ⚠️ Bug found + fixed (see below) |
+| 10 | BYO key: agency can set own Anthropic key | 🔲 Not yet tested manually |
+| 11 | Drop brief into Claude Code → scaffolds project | 🔲 Not yet tested manually |
+
+### Provisioning Fire-and-Forget Bug — Fixed
+
+**Bug:** `parseProvisioningItems` (calls Claude API) was invoked as fire-and-forget in the approve route. Vercel kills unresolved Promises when a serverless function returns, so provisioning items were never saved → dashboard checklist always empty.
+
+**Fix (commit `82b6bac`):**
+- Moved provisioning parse into `Promise.allSettled` alongside the two emails
+- All three now awaited before `return Response.json({ ok: true })`
+- Added idempotency guard: skips insert if items already exist for the interview
+- Failure logged via `console.error` but never blocks the approve response
+
+---
+
 ## Next Session Priorities
 
-1. M9 — acceptance tests from §11 of BUILD_BRIEF_Final.md
-2. Design review — further alignment with suki-systems.com brand
-3. Custom domain on Vercel (optional)
+1. **End-to-end test** — full flow with provisioning fix live (verify checklist populates in dashboard)
+2. **M9 test #10** — manual: go to `/dashboard/settings`, enter a BYO Anthropic key, run a new interview, confirm it uses that key
+3. **M9 test #11** — manual: copy the agency brief from dashboard, paste into a Claude Code session, confirm it generates a working project scaffold
+4. Design review — further alignment with suki-systems.com brand
+5. Custom domain on Vercel (optional)
 
 ---
 
