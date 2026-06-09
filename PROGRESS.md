@@ -216,14 +216,35 @@ Was blocking clients from reaching the app (redirected to Vercel login). Turned 
 
 ---
 
+---
+
+## Session 5 — 9 June 2026 (continued)
+
+### Email delivery fully resolved ✅
+- `RESEND_API_KEY` updated in Vercel — confirmed working
+- Root cause of `yali@suki-systems.com` / `gil@suki-systems.com` not receiving: missing MX records
+- DNS is controlled by **Vercel DNS** (not Squarespace) — MX records must go in Vercel
+- Added 5 Google Workspace MX records to Vercel DNS:
+  - Priority 1: `ASPMX.L.GOOGLE.COM`
+  - Priority 5: `ALT1/ALT2.ASPMX.L.GOOGLE.COM`
+  - Priority 10: `ALT3/ALT4.ASPMX.L.GOOGLE.COM`
+- Both addresses confirmed delivering ✅
+- End-to-end test passed: full flow → both emails arrived
+
+### Flow + UI polish
+- Claude closing message fixed: no bullet-point recap, warm 2-sentence handoff
+- SummaryView: "Phase 1 Complete — We're on it." with pulsing dots
+- ContactPopup: step 3 of 4, button "Continue to review →"
+- BudgetStep: step 2 of 4
+- Dashboard agency brief: markdown rendered properly (was raw `<pre>`)
+
+---
+
 ## Next Session Priorities
 
-1. **Update `RESEND_API_KEY` in Vercel** — must match value in `.env.local` (Vercel → Settings → Environment Variables)
-2. Run full end-to-end test using `giltruman1906@gmail.com` as client email
-3. Verify agency brief arrives at `yali@suki-systems.com`
-4. M9 — acceptance tests from §11 of BUILD_BRIEF_Final.md
-5. Fix any issues found in testing
-6. Custom domain on Vercel (optional)
+1. M9 — acceptance tests from §11 of BUILD_BRIEF_Final.md
+2. Design review — further alignment with suki-systems.com brand
+3. Custom domain on Vercel (optional)
 
 ---
 
