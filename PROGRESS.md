@@ -324,9 +324,52 @@ Budget page + AI tier classifier read tiers dynamically, so both auto-include th
 
 ---
 
+## Session 8 — 13 June 2026
+
+### 2nd real client (Invictus Institute) — stuck at `active`, recovered manually
+
+**Report:** Client Benjamin (`benjamin@invictushealthhub.com`, company "Invictus Institute") completed the full intake conversation for interview `b60b94bf-…` but no email arrived and the flow never advanced. Different failure from Session 7's stuck-at-`review`.
+
+**Diagnosis — two separate bugs:**
+
+1. **Completion never fired (root cause).** Interview was stuck at `status='active'`. Transcript was complete (all 15 fields richly captured) and Claude even gave its verbal closing ("That's everything we need… On to the next step!" at msg 34) — but the `save_fields` tool call on that turn did **not** mark all 15 fields non-null, so `isInterviewComplete()` never returned true and status never flipped `active`→`budget`. The client was left on the chat screen with no "next" button and asked "anything else you need to get this sent off?". **The verbal closing and the actual completion signal are decoupled** — the model can *say* it's done without the tool reflecting it. Not yet fixed in code (see Next Priorities).
+
+2. **Brief truncated at `max_tokens: 4096`.** Found during recovery: `lib/brief-generator.ts` capped output at 4096 tokens. This large project (8 programs, ~10 integrations) blew past it — the agency brief was cut off mid-"Build Plan", dropping Provisioning Checklist, Budget, Client Contact, Acceptance Criteria, Open Questions. That's also why `parseProvisioningItems` returned 0 (no checklist section to parse). **Fixed (local, uncommitted):** raised to `max_tokens: 16000` + added a `stop_reason === 'max_tokens'` guard that throws instead of silently storing a truncated brief.
+
+**Manual recovery (ran real route code via local dev server against live Supabase + Resend):**
+- Flipped `active`→`budget`, then `budget` route with **Large** tier ($25k–$50k AUD, 6–10 weeks)
+- `lead` route: company "Invictus Institute", contact "Benjamin", email `benjamin@invictushealthhub.com` (email recovered from the auth account created at interview start)
+- `finalize` → first pass produced truncated brief; after the max_tokens fix, deleted the cached brief and re-ran → **26,206-char complete brief** (all 10 sections)
+- `approve` → sent client summary email, marked `complete`, but provisioning still 0 (truncated brief at that point)
+- One-off temp route → parsed **22 provisioning items** from the complete brief + **re-sent the complete agency `.md`** to yali@ (client NOT re-emailed — already had correct summary). Temp route deleted after.
+
+**Final state (verified):** status `complete`, tier large, lead saved, agency brief 26.2k chars, client summary 3.9k chars, 22 provisioning items (all pending). Both emails confirmed sent, no Resend errors.
+
+### Robustness pass — completion gate + timeout fixed (same session, tested)
+
+Triggered by the Invictus failure + an imminent 3rd customer ("no issues"). Full flow audit → fixed both the root completion bug and a newly-found timeout risk. All `tsc` clean, `next build` passes, behaviour verified via API tests.
+
+**1. Completion gate — no longer strandable (root fix).** Previously `active`→`budget` depended ENTIRELY on the model emitting a perfect 15-field `save_fields` on the closing turn; if it didn't, the client was stuck with no escape. Now THREE independent triggers, any one advances:
+- `lib/interview-spec.ts` — new `COMPLETE_INTERVIEW_TOOL`; prompt updated to require calling it on the closing turn ("call even if unsure every box is filled").
+- `app/api/interview/[id]/message/route.ts` — advances on `complete_interview` **OR** full `save_fields`; advance logic moved to shared `advanceToBudget()` and **awaited** (no more fire-and-forget pricing that Vercel could kill).
+- `lib/complete-interview.ts` (new) — shared `advanceToBudget()` + `extractFieldsFromTranscript()` (forced server-side re-extraction over the whole transcript, independent of inline tool calls).
+- `app/api/interview/[id]/advance/route.ts` (new) — safety-net endpoint: re-extracts from transcript, advances if complete, returns `{reason:'incomplete'|'too_early', missing:[...]}` otherwise. Idempotent (no-op if already past `active`). Guards against advancing a <4-user-turn chat.
+- `app/interview/[id]/ChatClient.tsx` — subtle "Already covered everything? Continue →" escape-hatch link, shown only after ≥6 user turns when not yet complete; calls `/advance`.
+
+**2. Vercel timeout risk (newly found, critical).** No `maxDuration` set anywhere + no `vercel.json`. `finalize` ran 82–138s locally (worse now with the 16k brief) → would hit Vercel's default timeout in prod → client stuck forever on the review spinner. Added `export const maxDuration = 300` to `finalize`, `approve`, and `message` routes. **Requires Vercel Pro** (they are, per session 7) — if not on a plan allowing 300s the cap still applies.
+
+**Tested (local dev + live Supabase):** `/advance` on a copy of Benjamin's full transcript → `advanced:true`, tier auto-set to large, status→budget. Barely-started chat → `too_early` 409. Second call → idempotent `advanced:false`. Test interviews cleaned up.
+
+### ⚠️ Carryover — ALL fixes uncommitted + undeployed
+Everything above (brief truncation fix + completion robustness + maxDuration) is **local only on `main`**. Must `git commit` + `git push` to deploy to Vercel prod before the next customer. Changed/new files: `lib/brief-generator.ts`, `lib/interview-spec.ts`, `lib/complete-interview.ts` (new), `app/api/interview/[id]/message/route.ts`, `app/api/interview/[id]/advance/route.ts` (new), `app/api/interview/[id]/finalize/route.ts`, `app/api/interview/[id]/approve/route.ts`, `app/interview/[id]/ChatClient.tsx`.
+
+---
+
 ## Next Session Priorities
 
-1. **End-to-end test** — full flow with provisioning fix live (verify checklist populates in dashboard)
+0. **Commit + push ALL session-8 fixes** (brief truncation + completion robustness + maxDuration) → deploy to Vercel. Nothing is live yet.
+0b. Confirm Vercel plan allows `maxDuration = 300` (Pro). If `finalize` still times out, that's the cause.
+1. **End-to-end test on prod** — run a fresh interview start→complete, confirm it auto-advances at the end (and the "Continue" escape hatch works), checklist populates.
 2. **M9 test #10** — manual: go to `/dashboard/settings`, enter a BYO Anthropic key, run a new interview, confirm it uses that key
 3. **M9 test #11** — manual: copy the agency brief from dashboard, paste into a Claude Code session, confirm it generates a working project scaffold
 4. Design review — further alignment with suki-systems.com brand
