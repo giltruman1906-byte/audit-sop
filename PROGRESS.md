@@ -288,7 +288,10 @@ Ran all 11 tests from §11 of BUILD_BRIEF_Final.md:
 
 **Open gap (now being fixed):** The approval gate is silent — if a client abandons at `review`, no email fires and the agency gets no notification.
 
-### Stuck-at-review notification — BUILT (needs 1 manual DB step + Vercel env)
+### ⛔ Stuck-at-review notification — REMOVED (commit `29d3588`)
+**Reverted by request.** Decision: rely on the dashboard `status` column to see where each client is, no email alert needed. Deleted the cron route, `vercel.json`, `sendStuckReviewEmail()`, `CRON_SECRET`, and the `review_notified_at` schema line. Two leftovers (both harmless, optional to clean up): the live DB still has an unused `review_notified_at` column (`alter table interviews drop column review_notified_at;` to remove), and the `CRON_SECRET` env var in Vercel can be deleted. Original build notes kept below for history.
+
+### Stuck-at-review notification — BUILT then removed (history)
 
 A Vercel Cron job that alerts the agency when leads sit at `review` without approving.
 
