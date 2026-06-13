@@ -360,8 +360,18 @@ Triggered by the Invictus failure + an imminent 3rd customer ("no issues"). Full
 
 **Tested (local dev + live Supabase):** `/advance` on a copy of Benjamin's full transcript → `advanced:true`, tier auto-set to large, status→budget. Barely-started chat → `too_early` 409. Second call → idempotent `advanced:false`. Test interviews cleaned up.
 
-### ⚠️ Carryover — ALL fixes uncommitted + undeployed
-Everything above (brief truncation fix + completion robustness + maxDuration) is **local only on `main`**. Must `git commit` + `git push` to deploy to Vercel prod before the next customer. Changed/new files: `lib/brief-generator.ts`, `lib/interview-spec.ts`, `lib/complete-interview.ts` (new), `app/api/interview/[id]/message/route.ts`, `app/api/interview/[id]/advance/route.ts` (new), `app/api/interview/[id]/finalize/route.ts`, `app/api/interview/[id]/approve/route.ts`, `app/interview/[id]/ChatClient.tsx`.
+### Shipped to production + live prod smoke test (same session)
+
+All fixes committed and pushed to `main` → Vercel auto-deployed. Commits:
+- `aab6731` — completion gate (server-side hand-off detection + `complete_interview` tool + `/advance` route + UI escape hatch) + brief truncation (max_tokens 16k) + `maxDuration=300` on message/finalize/approve.
+- `5c09dde` — dashboard Client column now reads the company name from `leads` (was showing `—` from the never-populated `interviews.client_label`).
+- `19185b1` — provisioning parser max_tokens 1024→4096 (see below).
+
+**KEY FINDING — completion can't depend on the model.** Live test proved claude-sonnet-4-6 routinely gives a perfect closing message ("…on to the next step!") while firing NEITHER completion tool. Fix: server detects the hand-off (assistant reply has no `?` + ≥6 user turns) → re-extracts fields from the full transcript → advances. Model tool calls are now just a fast-path, not the gate.
+
+**KEY FINDING — "max_tokens too low" is a recurring silent-failure pattern.** THREE spots truncated with no error, each yielding empty/half output: brief-generator (4096→16000), and provisioning-parser (1024→4096 — 20+ env vars overflowed the tool JSON → empty checklist for every large project). Only caught by the live smoke test. All now guard `stop_reason==='max_tokens'`. Rule: any new Claude call emitting structured/long output needs generous max_tokens + a stop_reason guard.
+
+**Live prod smoke test — PASSED end-to-end.** Fresh interview on `intake-engine-umber.vercel.app` through every stage: intake auto-advanced → budget (large) → contact (`liaba99@gmail.com`) → finalize (30k brief, **159s** — under the new 300s cap, would've died on the old default) → approve → `complete`, 28 provisioning items, both emails delivered (user confirmed). The smoke test itself surfaced + fixed the provisioning bug before any real customer hit it.
 
 ---
 
