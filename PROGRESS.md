@@ -375,8 +375,20 @@ All fixes committed and pushed to `main` → Vercel auto-deployed. Commits:
 
 ---
 
+### Flow redesign — contact/budget first, gap-gate, no approval (DEPLOYED `a33e358`)
+
+Reworked the whole client flow to stop churn and guarantee a gap-free brief. New status flow: **`contact → budget → intake → finalizing → complete`**.
+
+- **Contact first** (email pre-filled from sign-in, editable), then **budget** (client picks a range; AI re-matches the tier from the conversation *after* the intake), then the **intake conversation last**. Lead captured up front ⇒ a churn mid/post-intake no longer loses the lead. Sign-on wall KEPT (fraud protection).
+- **Approval/review step removed.** When the intake finishes, the server generates brief+summary, sends both emails, builds provisioning, marks complete — all via Next `after()` so it survives the client closing the tab.
+- **Gap gate (core of the product):** the model no longer decides "done". When it proposes completion, the server runs a holistic gap audit over the transcript; any build-blocking open question/assumption becomes the next question and the intake continues — only a clean audit wraps up (60-message cap backstop). Per-field extraction proved too flaky to gate on, so the audit is the gate.
+- New `lib/complete-interview.ts`: `auditGaps`, `generateGapQuestion`, `advanceToFinalizing`, `finalizeAndSend`. Dormant now: approve/finalize/reopen routes + ReviewStep.
+- **Tested on dev:** stages, gap-gate asking real follow-ups (caught missing exception-handling + approval rules on an "already complete" transcript), completion → `after(finalizeAndSend)` → emails + 10 provisioning items, tier refine small→medium. Confirmed live on prod (new interviews start at `contact`).
+- **Not yet browser-verified on prod:** SummaryView polling UI + the message-route auto-complete branch (components individually verified). Worth a real browser walkthrough.
+
 ## Next Session Priorities
 
+0. **Browser walkthrough of the new flow on prod** — click contact → budget → intake → confirm summary screen + both emails. Watch gap-gate convergence (intake length).
 0. **Commit + push ALL session-8 fixes** (brief truncation + completion robustness + maxDuration) → deploy to Vercel. Nothing is live yet.
 0b. Confirm Vercel plan allows `maxDuration = 300` (Pro). If `finalize` still times out, that's the cause.
 1. **End-to-end test on prod** — run a fresh interview start→complete, confirm it auto-advances at the end (and the "Continue" escape hatch works), checklist populates.
