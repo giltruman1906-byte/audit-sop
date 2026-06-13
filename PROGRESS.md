@@ -272,6 +272,55 @@ Ran all 11 tests from §11 of BUILD_BRIEF_Final.md:
 
 ---
 
+## Session 7 — 13 June 2026
+
+### Real client stuck at `review` — diagnosed + recovered
+
+**Report:** First real external client (AB Residential / Mikey Azougui, `mikey@ab-residential.com`, interview started 10 Jun). Dashboard populated, but neither Suki nor the client received an email. Reported as a "Resend / email" issue.
+
+**Diagnosis (NOT a Resend problem):**
+- Interview `d673ac80-…` was stuck at `status='review'`, `completed_at=null`, **zero `provisioning_items`**.
+- Brief existed (from `finalize`, which auto-runs on ReviewStep mount) — that's why the dashboard looked "populated."
+- Both emails + provisioning are sent/created **only** by the `approve` route (fired by the client clicking "Approve & Submit"). Status still `review` ⇒ approve never completed ⇒ Resend was never invoked.
+- Root cause: client reached the review screen but never completed the approval click. Confirmed pattern — interview `efd9ef12` (old "moshe" test) is stuck the same way.
+
+**Recovery:** Ran the real `approve` route locally (prod URL has Vercel auth protection on) against live Supabase + Resend. Result: status → `complete`, both emails sent (no errors), 6 provisioning items created.
+
+**Open gap (now being fixed):** The approval gate is silent — if a client abandons at `review`, no email fires and the agency gets no notification.
+
+### Stuck-at-review notification — BUILT (needs 1 manual DB step + Vercel env)
+
+A Vercel Cron job that alerts the agency when leads sit at `review` without approving.
+
+- `app/api/cron/stuck-review/route.ts` — GET handler, guarded by `CRON_SECRET` Bearer. Finds interviews `status='review'`, `review_notified_at IS NULL`, whose lead `consent_ts` is older than **30 min**; emails a digest to `BRIEF_DELIVERY_EMAIL`; marks `review_notified_at` so it never double-notifies.
+- `lib/email.ts` — new `sendStuckReviewEmail()` (branded HTML digest table of stuck leads + dashboard links).
+- `vercel.json` — runs **twice daily at 10:00 & 17:00 AWST** (`0 2 * * *` and `0 9 * * *` UTC; WA = UTC+8, no DST). On Vercel Pro.
+- `.env.local` / `.env.example` — new `CRON_SECRET`.
+- `db/schema.sql` — added `review_notified_at timestamptz` + `irrelevant_count` to interviews; status comment updated.
+- Verified: `tsc` clean; route 401 without secret; cron query executes against the live column and returns `[]` (nothing stuck) correctly.
+
+**DONE:** column `review_notified_at` added to live DB; committed + pushed (`1352546`) → Vercel auto-deploy.
+**Confirm in Vercel:** `CRON_SECRET` env var is set (value in `.env.local`) — without it the cron route runs unauthenticated (still works, just not secured).
+
+### DB cleanup — old test interviews deleted
+Deleted all 7 interviews created before 2026-06-10 (Test Co, moshe builders, Acme corp, + 4 empty drafts) via cascade. **Only Mikey / AB Residential (`d673ac80…`) remains.** Dashboard is now clean.
+
+### New pricing tiers — DONE (live)
+
+Added two tiers below the old $5k floor (`tier` is plain text, no migration needed). Renumbered sort_order; live in `pricing_tiers` + seeded in `schema.sql`:
+
+| order | tier | label | range (AUD) | timeframe |
+|---|---|---|---|---|
+| 1 | `micro` | Quick Fix | $250 – $1,000 | 2–5 days |
+| 2 | `starter` | Starter Project | $1,000 – $5,000 | 1–2 weeks |
+| 3 | `small` | Small Project | $5,000 – $10,000 | 1–3 weeks |
+| 4 | `medium` | Medium Project | $10,000 – $25,000 | 3–6 weeks |
+| 5 | `large` | Large Project | $25,000 – $50,000 | 6–10 weeks |
+
+Budget page + AI tier classifier read tiers dynamically, so both auto-include the new ones. Prices/labels editable in `/dashboard/settings`.
+
+---
+
 ## Next Session Priorities
 
 1. **End-to-end test** — full flow with provisioning fix live (verify checklist populates in dashboard)
