@@ -386,14 +386,42 @@ Reworked the whole client flow to stop churn and guarantee a gap-free brief. New
 - **Tested on dev:** stages, gap-gate asking real follow-ups (caught missing exception-handling + approval rules on an "already complete" transcript), completion → `after(finalizeAndSend)` → emails + 10 provisioning items, tier refine small→medium. Confirmed live on prod (new interviews start at `contact`).
 - **Not yet browser-verified on prod:** SummaryView polling UI + the message-route auto-complete branch (components individually verified). Worth a real browser walkthrough.
 
+## Session 9 — 14 June 2026
+
+### Goal: get the redesigned flow truly working end-to-end (it wasn't). DONE ✅
+
+Started from the dashboard showing 4 interviews incl. an empty shell + a real client whose intake never finished. Ended with a verified, clean end-to-end flow and a deduped DB. Four fixes shipped, all `tsc`/`eslint` clean and deployed to prod.
+
+**1. No more empty-shell "spam" interviews — deferred row creation (commit `18c8f1d`).**
+A row used to be inserted at `status='contact'` the instant the agency clicked **New Interview**, so every generated-but-unused or abandoned-before-contact link left a permanent empty row in the DB/dashboard. Now:
+- `api/interview/start` returns a bare UUID, **writes nothing**.
+- `interview/[id]/page.tsx` renders the contact step when **no row exists yet** (uses `.maybeSingle()`).
+- `api/interview/[id]/lead` **creates** the interview row on contact submit (FK-safe: interview before lead), going straight to `budget`; 409s if a row already exists past `contact`.
+- Net: a row appears only once a client submits real contact details. Dashboard mirrors the DB with **no filtering** (user explicitly wanted DB-level, not a UI filter).
+
+**2. Link is single-use after finishing — verified.** Guard matrix confirmed: `message` needs `intake`, `lead` needs/creates `contact`, `budget` needs `budget`, `reopen` needs `review` (never reached in new flow). A `complete` link only ever renders the read-only SummaryView. No path re-opens a finished interview.
+
+**3. ROOT BUG — gap-gate infinite loop (commit `8b53024`).** First real test (Lia, 25 user turns, every field captured) never completed: she said she'd supply her Bit/Paybox payment URL later, and `auditGaps` flagged that missing URL as build-blocking **every turn** → asked forever → no finalize, no emails, no summary, and the client could keep talking (bounded only by the 60-msg cap). Fix: rewrote the audit prompt so a **deliverable the client has promised to provide later** (URL/credential/asset/account) is a known open dependency, **not** a blocking unknown — plus excludes agency-decidable implementation choices and already-answered points. Verified both ways before shipping: Lia's real transcript → **0 gaps (auto-completes)**; a deliberately thin intake → **5 gaps (keeps asking)**.
+
+**4. Client no longer sees an AI-inflated budget (commit `8972373`).** `advanceToFinalizing` used to re-classify the tier via the AI and **overwrite** `tier/budget_min/budget_max` — which the client sees in BOTH the on-screen summary ("Your budget range") and the summary email. A simple project bumped Starter→Large, so the client saw $25k–50k after picking $1k–5k. Fix: `advanceToFinalizing` now only transitions to `finalizing`; the client's picked tier/budget is kept exactly as selected everywhere. Removed the now-dead tier re-match + transcript field-extraction in `message`/`advance` routes (`getMatchedTier` now unused, left in `pricing.ts` for a future internal-only agency hint). Also reworded the completion screen to: *"a full copy of this summary is on its way to the email you provided. Suki Systems will take it from here, and we'll only reach back out if a question comes up or we need to confirm an assumption before building."*
+
+**Recovery + live verification.**
+- Recovered Lia's stuck interview by POSTing `/advance` on prod → finalized, brief 16.8k, summary 2.8k, 14 provisioning items, both emails sent.
+- **Test #2 (fresh link, full browser walkthrough): PASSED.** Auto-completed on its own, tier stayed `starter` as picked (budget fix confirmed), both emails delivered, dashboard row populated. User: *"working beautiful."*
+
+**DB cleanup.** Deleted the 3 test rows (2 Lia smoke tests + the empty shell) via cascade. **3 real clients remain:** United/Metroll, Invictus Institute, AB Residential — all `complete`.
+
+**Status: the contact → budget → intake → finalizing → complete flow now works end-to-end, verified in the browser on prod.**
+
+---
+
 ## Next Session Priorities
 
-0. **Browser walkthrough of the new flow on prod** — click contact → budget → intake → confirm summary screen + both emails. Watch gap-gate convergence (intake length).
-0. **Commit + push ALL session-8 fixes** (brief truncation + completion robustness + maxDuration) → deploy to Vercel. Nothing is live yet.
-0b. Confirm Vercel plan allows `maxDuration = 300` (Pro). If `finalize` still times out, that's the cause.
-1. **End-to-end test on prod** — run a fresh interview start→complete, confirm it auto-advances at the end (and the "Continue" escape hatch works), checklist populates.
-2. **M9 test #10** — manual: go to `/dashboard/settings`, enter a BYO Anthropic key, run a new interview, confirm it uses that key
-3. **M9 test #11** — manual: copy the agency brief from dashboard, paste into a Claude Code session, confirm it generates a working project scaffold
+**Core flow is DONE + verified end-to-end on prod (session 9).** Remaining:
+
+1. **M9 test #10** — manual: go to `/dashboard/settings`, enter a BYO Anthropic key, run a new interview, confirm it uses that key
+2. **M9 test #11** — manual: copy the agency brief from dashboard, paste into a Claude Code session, confirm it generates a working project scaffold
+3. **(Optional) Internal-only AI tier hint** — session 9 removed the AI tier re-classification entirely because it was overwriting (and showing the client) an inflated budget. If the agency still wants the AI's complexity read, re-add it as an internal field that NEVER changes what the client sees. `getMatchedTier` is still in `lib/pricing.ts`, unused, ready for this.
 4. Design review — further alignment with suki-systems.com brand
 5. Custom domain on Vercel (optional)
 
