@@ -415,6 +415,26 @@ A row used to be inserted at `status='contact'` the instant the agency clicked *
 
 ---
 
+## Session 11 — 9 August 2026 (pre-client smoke test)
+
+Preparing to send a real client an intake link after a ~5-week gap (Resend DKIM was fixed in session 10, 1 July). Ran a full scripted end-to-end smoke test against **prod** (`intake-engine-umber.vercel.app`) driving the API routes directly — test client `yali@suki-systems.com`, company "SMOKE TEST — Session 11", starter tier.
+
+**Everything PASSED:**
+- Contact → budget → intake: all 200s; interview row created only on contact submit (deferred-row behavior intact).
+- **Gap-gate behaved perfectly**: the scripted client left one genuine detail unanswered (contract-template placeholders) and the interviewer kept asking for exactly that — no premature completion, no infinite loop.
+- "Already covered everything? Continue →" `/advance` safety net force-completed cleanly.
+- Finalized in ~80s: status `complete`, tier/budget kept **exactly as picked** (starter $1k–5k, no AI inflation), 12.9k-char agency brief, 2.9k-char client summary, 7 sensible provisioning items.
+- **Both emails delivered and human-verified in the inbox** (client summary + agency brief, both to yali@; zero email errors in Vercel runtime logs).
+
+**Notes:**
+- Prod `BRIEF_DELIVERY_EMAIL` remains `yali@suki-systems.com`. User floated moving it to `gil@suki-systems.com` — not changed; revisit if wanted (env change + redeploy).
+- Local `.env.local` Resend key is **send-only** — can't read the Resend delivery log with it; verify sends via Vercel runtime logs or the inbox.
+- DB cleaned after the test (interview `861e0183…` + all child rows deleted). 3 real clients remain: United/Metroll, Invictus, AB Residential.
+
+**Status: prod verified green; user is generating a fresh link for the next real client.**
+
+---
+
 ## Next Session Priorities
 
 **Core flow is DONE + verified end-to-end on prod (session 9).** Remaining:
